@@ -105,7 +105,7 @@ export function Landing() {
                   <span className="label-mono text-ink-soft">FALL / WINTER SEASON</span>
                 </div>
 
-                <h1 className="display text-[clamp(3rem,9vw,7rem)] mb-8">
+                <h1 className="display text-[clamp(2.5rem,8vw,7rem)] leading-[0.95] mb-8">
                   Come.
                   <br />
                   Get
