@@ -144,6 +144,35 @@ postgresql://postgres:pass@aws-1-ap-south-1.pooler.supabase.com:5432/postgres
 
 ---
 
+## 7. Cloudflare Tunnel URL Changes on OS Reboot
+
+**Problem:** Cloudflare quick tunnel URL changes every time the OS reboots, breaking the frontend-backend connection.
+
+**Root Cause:** Cloudflare quick tunnels (`cloudflared tunnel --url`) generate a new random URL on each startup. They are not permanent.
+
+**Solution:**
+
+For a **quick demo**, just update the Vercel env var with the new URL after each reboot:
+```bash
+# Get current URL
+sudo journalctl -u cloudflared | grep "trycloudflare.com"
+
+# Update Vercel BUN_PUBLIC_API_URL with new URL
+# Redeploy frontend
+```
+
+For a **permanent fix**, create a Cloudflare account and use named tunnels:
+```bash
+cloudflared tunnel login          # One-time login
+cloudflared tunnel create stellar-forge
+cloudflared tunnel run stellar-forge
+# Gives a permanent URL like https://api.your-domain.com
+```
+
+**Prevention:** Use systemd to auto-start both backend and cloudflared on boot. The URL stays stable across service restarts — only changes on OS reboot.
+
+---
+
 ## Key Takeaways
 
 1. **PM2 caches env vars** — always `delete` + `start`, never just `restart`
