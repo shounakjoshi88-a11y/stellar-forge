@@ -7,9 +7,16 @@ A full-stack event management platform built for the **Ramdeobaba University × 
 
 ![Landing Page](screenshot/Screenshot%202026-08-09%20211923.png)
 
-### Admin Access
+### Roles & Access
 
-The first person to sign in automatically becomes the **admin**. I am currently the admin. If you need admin access (to create events, manage team, scan tickets), contact me:
+| Role | Permissions |
+|------|-------------|
+| **Owner (1st user)** | Full access: create events, scan tickets, view dashboards, **promote/revoke admins** |
+| **Promoted Admin** | Create events, scan tickets, view dashboards (cannot promote others) |
+
+### Need Admin Access?
+
+Contact me to be promoted to admin:
 
 - **WhatsApp:** [+91 7517991747](https://wa.me/917517991747)
 - **Email:** shounakjoshi88@gmail.com
