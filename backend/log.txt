@@ -1,0 +1,3 @@
+🚀 Stellar Forge API running on http://localhost:3001
+GET /api/events/categories 200 363ms
+GET /api/events? 200 236ms

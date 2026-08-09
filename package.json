@@ -1,0 +1,17 @@
+{
+  "name": "stellar-forge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "bun --filter '*' dev",
+    "dev:frontend": "bun --filter stellar-forge-frontend dev",
+    "dev:backend": "bun --filter stellar-forge-backend dev",
+    "build": "bun --filter stellar-forge-shared build && bun --filter stellar-forge-backend build && bun --filter stellar-forge-frontend build"
+  }
+}

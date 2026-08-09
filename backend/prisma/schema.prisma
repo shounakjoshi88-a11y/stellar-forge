@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String?
+  supabaseId String?  @unique
+  name       String
+  role       Role     @default(ATTENDEE)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  registrations Registration[]
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  location    String
+  date        DateTime?
+  endDate     DateTime?
+  capacity    Int
+  category    String
+  imageUrl    String?
+  isPublished Boolean  @default(true)
+  isOpen      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  registrations Registration[]
+  updates        EventUpdate[]
+}
+
+model Registration {
+  id              String              @id @default(cuid())
+  userId          String
+  eventId         String
+  status          RegistrationStatus @default(CONFIRMED)
+  ticketId        String              @unique
+  registeredAt    DateTime            @default(now())
+  usedCount       Int                 @default(0)
+  lastScannedAt   DateTime?
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  event           Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+}
+
+enum Role {
+  ATTENDEE
+  ADMIN
+}
+
+enum RegistrationStatus {
+  CONFIRMED
+  CANCELLED
+  WAITLISTED
+}
+
+model AdminAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorEmail  String
+  targetId    String
+  targetEmail String
+  oldRole     Role
+  newRole     Role
+  createdAt   DateTime @default(now())
+}
+
+model EventUpdate {
+  id        String   @id @default(cuid())
+  eventId   String
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
