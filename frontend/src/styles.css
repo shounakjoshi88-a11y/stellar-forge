@@ -409,7 +409,9 @@ textarea:focus-visible {
 
 /* ---- Display type ---- */
 @media (max-width: 768px) {
-  .display { letter-spacing: -0.02em; }
+.display {
+  font-weight: 900;
+}
   h1.display { word-break: break-word; }
 }
 
