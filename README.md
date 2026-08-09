@@ -3,19 +3,19 @@
 A full-stack event management platform built for the **Ramdeobaba University × GeeksForGeeks** submission. Centralizes event creation, registration, ticketing, and real-time monitoring into a single immersive experience with exceptional UI/UX, responsive design, creative typography, smooth animations, and interactive 3D elements.
 
 **Author:** [Shounak Joshi](https://github.com/shounakjoshi88-a11y)
-**Live Demo:** *(add deployment link)*
+**Live Demo:** [https://stellar-forge-frontend.vercel.app/](https://stellar-forge-frontend.vercel.app/)
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
+- [Live Demo](#live-demo)
 - [Features](#features)
 - [Application Flow](#application-flow)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Getting Started](#getting-started)
-- [Environment Variables](#environment-variables)
 - [Database Schema](#database-schema)
 - [Dashboards](#dashboards)
 - [Real-Time System](#real-time-system)
@@ -36,6 +36,20 @@ Event Management Headquarters coordinates events across various sectors. This po
 - **Administrators** can create/edit events, monitor registrations in real-time, scan tickets at the door, and export data
 
 The application features a neubrutalist "paper print-shop" design system, a scroll-driven 3D falling scissor animation, Web Audio sound design, and real-time updates via WebSocket + SSE.
+
+---
+
+## Live Demo
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | [https://stellar-forge-frontend.vercel.app/](https://stellar-forge-frontend.vercel.app/) |
+| **Backend API** | `http://3.110.107.0:3001/api` |
+| **Health Check** | [http://3.110.107.0:3001/api/health](http://3.110.107.0:3001/api/health) |
+
+### Test Credentials
+- **Admin:** Sign in with any Google email (first sign-in creates the account)
+- The email in `ADMIN_OWNER_EMAIL` gets auto-promoted to admin
 
 ---
 
@@ -151,7 +165,7 @@ stellar-forge/
 │   │   └── live.ts        # WebSocket + SSE real-time engine
 │   └── prisma/
 │       └── schema.prisma  # Database models
-└── shared/                # Shared types (vestigial)
+└── shared/                # Shared types
 ```
 
 ---
@@ -181,17 +195,13 @@ bunx prisma db push
 bun run db:seed
 ```
 
-### 3. Configure Environment Variables
-
-See [Environment Variables](#environment-variables) below.
-
-### 4. Configure Supabase (Google OAuth)
+### 3. Configure Supabase (Google OAuth)
 
 1. In Supabase Dashboard → Authentication → Providers → enable **Google**
 2. Set Site URL to `http://localhost:5173`
 3. Add redirect URL: `http://localhost:5173/oauth/callback`
 
-### 5. Run Development Servers
+### 4. Run Development Servers
 
 ```bash
 # Terminal 1 - Backend
@@ -204,47 +214,11 @@ cd frontend && bun run dev
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:3001/api
 
-### 6. Admin Access
+### 5. Admin Access
 
 1. Set `ADMIN_OWNER_EMAIL` in `backend/.env` to your Google email
 2. Sign in with Google — your account auto-promotes to ADMIN
 3. Go to **Admin → Team** to grant admin access to teammates
-
----
-
-## Environment Variables
-
-### backend/.env
-
-```env
-# Database
-DATABASE_URL="postgresql://user:pass@host:5432/stellarforge"
-
-# Supabase (Auth + API)
-SUPABASE_URL="https://<project-ref>.supabase.co"
-SUPABASE_API_SECRET="<service_role_key>"
-
-# The owner's email — auto-promoted to ADMIN on every request
-ADMIN_OWNER_EMAIL="your-email@gmail.com"
-
-# CORS
-FRONTEND_URL="http://localhost:5173"
-
-# Optional
-PORT=3001
-NODE_ENV="development"
-```
-
-### frontend/.env
-
-```env
-# Supabase (public/anon)
-BUN_PUBLIC_SUPABASE_URL="https://<project-ref>.supabase.co"
-BUN_PUBLIC_SUPABASE_ANON_KEY="<anon_key>"
-
-# Optional
-VITE_API_URL="http://localhost:3001/api"
-```
 
 ---
 
@@ -394,7 +368,8 @@ All sounds opt-in (muted by default), lazy-loaded on first user gesture.
 
 See [API.md](./API.md) for complete endpoint documentation.
 
-**Base URL:** `http://localhost:3001/api`
+**Base URL (Production):** `http://3.110.107.0:3001/api`
+**Base URL (Local):** `http://localhost:3001/api`
 
 | Category | Endpoints |
 |----------|-----------|
@@ -409,18 +384,29 @@ See [API.md](./API.md) for complete endpoint documentation.
 
 ## Deployment
 
-### Frontend (Vercel/Netlify)
+### Production Deployment
+
+| Service | Platform | URL |
+|---------|----------|-----|
+| **Frontend** | Vercel | [https://stellar-forge-frontend.vercel.app/](https://stellar-forge-frontend.vercel.app/) |
+| **Backend** | AWS EC2 (t3.micro) | `http://3.110.107.0:3001` |
+| **Database** | Supabase | PostgreSQL |
+| **Auth** | Supabase | Google OAuth |
+
+### Deploy Frontend (Vercel)
 ```bash
 cd frontend
 bun run build
-# Deploy dist/ folder
+# Deploy dist/ folder to Vercel
 ```
 
-### Backend (Railway/Render)
+### Deploy Backend (AWS EC2)
 ```bash
 cd backend
-# Set environment variables
-bun run start
+bun install
+bunx prisma generate
+bunx prisma db push
+nohup bun src/index.ts > /tmp/stellar-forge.log 2>&1 &
 ```
 
 ### Database
@@ -430,13 +416,13 @@ Use Supabase or any PostgreSQL provider. Run `bunx prisma db push` to set up sch
 
 ## Deliverables
 
-| Deliverable | Status |
-|-------------|--------|
-| GitHub ID | [shounakjoshi88-a11y](https://github.com/shounakjoshi88-a11y) |
-| GitHub Repository | https://github.com/shounakjoshi88-a11y/stellar-forge |
-| README with setup | This file |
-| API Documentation | [API.md](./API.md) |
-| Live Deployment | *(add link)* |
+| Deliverable | Status | Link |
+|-------------|--------|------|
+| GitHub ID | ✅ | [shounakjoshi88-a11y](https://github.com/shounakjoshi88-a11y) |
+| GitHub Repository | ✅ | https://github.com/shounakjoshi88-a11y/stellar-forge |
+| README with setup | ✅ | This file |
+| API Documentation | ✅ | [API.md](./API.md) |
+| Live Deployment | ✅ | [https://stellar-forge-frontend.vercel.app/](https://stellar-forge-frontend.vercel.app/) |
 
 ---
 
