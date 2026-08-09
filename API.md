@@ -1,168 +1,175 @@
-# Stellar Forge API Documentation
+# Stellar Forge — API Documentation
 
-Base URL: `http://localhost:3001/api`
+**Base URL:** `http://localhost:3001/api`
 
 ---
 
 ## Authentication
 
-Authentication is handled by **Supabase Auth** (Google OAuth provider). Users sign in through the frontend
-(`supabase.auth.signInWithOAuth({ provider: "google" })`); the resulting Supabase access token is sent
-as a Bearer token on every request:
+Authentication uses **Supabase Auth** with Google OAuth. Users sign in via the frontend; the Supabase access token is sent as a Bearer token:
 
 ```
 Authorization: Bearer <supabase_access_token>
 ```
 
-The backend verifies the token **locally via the project's JWKS** (no per-request Supabase API round
-trip; falls back to `supabase.auth.getUser` on JWKS refresh races) and lazily provisions/links a local
-user row by `supabaseId` (email + name synced from Google).
+The backend verifies tokens locally via JWKS (no per-request Supabase API call) and provisions a local user row on first sign-in.
 
-**Roles are DB-authoritative.** The account in `ADMIN_OWNER_EMAIL` (backend `.env`) is the **owner**:
-their row is force-synced to `ADMIN` on every request (self-healing — the owner can never be locked
-out by a stale DB row or a bad demotion). All other users start as `ATTENDEE` and only become `ADMIN`
-when the owner grants it through the Team tab. Revocation is enforced live: every request re-reads the
-role from the database, and the frontend refetches `/auth/me` the moment any admin route returns
-401/403.
+**Roles are DB-authoritative:**
+- `ADMIN_OWNER_EMAIL` in `.env` is the **owner** — auto-promoted on every request
+- Other users start as `ATTENDEE`
+- Owner grants/revokes admin via Team tab (audit logged)
 
 ### GET `/auth/me` *(Auth required)*
-Get the current user profile (also re-syncs name/email from the Google identity).
 
-**Response:** `{ id, email, name, role, createdAt }`
+Get current user profile.
 
-> There is no `/auth/register` or `/auth/login` — accounts are created on first Google sign-in.
+**Response:**
+```json
+{ "id": "uuid", "email": "a@b.com", "name": "Ada", "role": "ADMIN", "createdAt": "..." }
+```
 
 ---
 
 ## Events
 
 ### GET `/events`
+
 List published events with pagination and filters.
 
-**Query Params:**
 | Param | Type | Description |
 |-------|------|-------------|
-| search | string | Search in title, description, location |
+| search | string | Search title, description, location |
 | category | string | Filter by category |
-| status | string | `upcoming`, `past`, or `all` |
-| page | number | Page number (default: 1) |
-| limit | number | Items per page (default: 12) |
+| status | string | `upcoming`, `past`, `all` |
+| page | number | Default: 1 |
+| limit | number | Default: 12 |
 
-**Response:** `{ events[], pagination }`
+**Response:** `{ "events": [...], "pagination": { "page", "total", "totalPages" } }`
 
 ### GET `/events/categories`
+
 Get all unique categories.
 
-**Response:** `string[]`
+**Response:** `["Technology", "Design", ...]`
 
 ### GET `/events/:id`
-Get single event details with attendee count.
+
+Get single event with attendee count.
+
+**Response:** `{ "id", "title", "description", "location", "date", "capacity", "category", "imageUrl", "registeredCount" }`
+
+### GET `/events/:id/live-count` *(SSE)*
+
+Server-sent events stream of registration count. One message every 5 seconds:
+
+```
+data: { "eventId": "abc", "registered": 42, "capacity": 100 }
+```
 
 ---
 
 ## Registrations *(Auth required)*
 
 ### GET `/registrations/my`
+
 Get all registrations for the logged-in user.
 
-### POST `/registrations/:eventId`
-Register for an event.
+**Response:** `[{ "id", "ticketId", "status", "event": {...}, "createdAt" }]`
 
-**Response:** `{ id, ticketId, status, event }`
+### POST `/registrations/:eventId`
+
+Register for an event. Uses Serializable transaction with row locking — only one user gets the last seat.
+
+**Response (201):** `{ "id", "ticketId", "status": "CONFIRMED", "event": {...} }`
+**Response (409):** `{ "error": "Event is full" }`
 
 ### DELETE `/registrations/:eventId`
-Cancel a registration.
+
+Cancel a registration (frees the seat).
 
 ### GET `/registrations/ticket/:ticketId`
-Get ticket details.
+
+Get ticket details for display/download.
+
+**Response:** `{ "ticketId", "eventName", "eventDate", "location", "attendeeName", "status", "qrCode" }`
 
 ---
 
 ## Admin *(Auth + Admin role required)*
 
-### Team Management *(Auth + Owner required)*
+### Event Management
 
-Team routes are guarded by `requireOwner` alone (deliberately independent of `requireAdmin`), so a
-stale DB role can never lock the owner out of the role manager.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/events` | List all events (including unpublished) |
+| POST | `/admin/events` | Create new event |
+| PUT | `/admin/events/:id` | Update event |
+| DELETE | `/admin/events/:id` | Delete event |
+| GET | `/admin/events/:id/attendees` | Get registered attendees (`?search=`) |
+| GET | `/admin/events/:id/export` | Export attendees as CSV |
 
-### GET `/admin/users` *(Owner)*
-List users. **Query Params:** `?search=John` (name or email).
-
-### PUT `/admin/users/:id/role` *(Owner)*
-Grant or revoke administrator access.
-
-**Body:** `{ "role": "ADMIN" | "ATTENDEE" }`
-
-**Guards:** the owner's own role cannot be changed (400); every change is recorded in the audit log
-inside the same transaction.
-
-### GET `/admin/audit-log` *(Owner)*
-Recent role changes (actor, target, old/new role, timestamp), newest first.
-
-### GET `/admin/events`
-List all events (including unpublished).
-
-### POST `/admin/events`
-Create a new event.
-
-**Body:** (`date` is optional — omit/`null` to list the event as **Date TBD · Coming Soon**)
+**Create Event Body:**
 ```json
 {
-  "title": "Event Name",
-  "description": "Description",
-  "location": "Location",
+  "title": "Tech Summit 2026",
+  "description": "Annual technology conference",
+  "location": "Convention Center · Hall A",
   "date": "2026-09-15T09:00:00Z",
-  "capacity": 100,
+  "capacity": 200,
   "category": "Technology",
   "imageUrl": "https://..."
 }
 ```
 
-### PUT `/admin/events/:id`
-Update an event.
+> `date` is optional — omit/null lists as **Date TBD · Coming Soon**
 
-### DELETE `/admin/events/:id`
-Delete an event.
+### Attendee Management
 
-### GET `/admin/events/:id/export`
-Export attendees as CSV file.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/registrations` | All registrations (`?search=`, `?status=`) |
+| GET | `/admin/attendees` | Every registered person with passes (`?search=`) |
 
-### GET `/admin/events/:id/attendees`
-Get registered attendees for an event.
-
-**Query Params:** `?search=John` (search by name)
-
-### GET `/admin/events/:id/export`
-Export attendees as CSV file.
-
-### GET `/admin/registrations`
-All registrations across every event (newest first, max 500).
-
-**Query Params:** `?search=` (attendee name/email, event title, or ticket id) · `?status=CONFIRMED|CANCELLED|WAITLISTED`
-
-### GET `/admin/attendees`
-Every registered person, each with all their CONFIRMED passes (event title, date, venue, ticket id, scan count).
-
-**Query Params:** `?search=` (search by name or email)
+### Ticket Scanning
 
 ### POST `/admin/tickets/scan`
-Door scan. Each ticket may be scanned **twice**: 1st scan = ENTRY, 2nd = EXIT, 3rd = rejected.
 
-**Body:** `{ "code": "TKT-…" }` (the value encoded in the ticket QR)
+Door scan. Each ticket scanned twice: 1st = ENTRY, 2nd = EXIT, 3rd = rejected.
+
+**Body:** `{ "code": "TKT-..." }`
 
 **Response (valid):**
 ```json
-{ "valid": true, "direction": "entry" | "exit", "usedCount": 1, "scannedAt": "…", "attendee": "Ada", "event": { "id": "…", "title": "…" } }
+{ "valid": true, "direction": "entry", "usedCount": 1, "scannedAt": "...", "attendee": "Ada", "event": {...} }
 ```
 
-**Response (invalid):** `404 not_found`, `400 not_open_yet` (gates open 1h before the event), `409 max_usage` — always shaped as `{ "valid": false, "reason": "…", "message": "…" }`.
+**Response (invalid):** `404 not_found`, `400 not_open_yet`, `409 max_usage`
+
+### Team Management *(Owner only)*
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/users` | List users (`?search=`) |
+| PUT | `/admin/users/:id/role` | Grant/revoke admin |
+| GET | `/admin/audit-log` | Role change history |
+
+**Role Change Body:** `{ "role": "ADMIN" | "ATTENDEE" }`
+
+### Real-time Admin Stream
+
+### GET `/admin/registrations-stream?access_token=<jwt>` *(SSE, Admin only)*
+
+Stream of new registrations for the admin dashboard:
+
+```
+data: { "timestamp": "...", "name": "Ada", "event": "Design Night" }
+```
 
 ---
 
 ## Dashboard
 
 ### GET `/dashboard/attendee` *(Auth required)*
-Get attendee dashboard stats.
 
 **Response:**
 ```json
@@ -172,13 +179,12 @@ Get attendee dashboard stats.
   "completedEvents": 2,
   "favoriteCategory": "Technology",
   "participationStreak": 2,
-  "upcomingReminders": [...],
+  "upcomingReminders": [{ "event": {...}, "daysUntil": 3 }],
   "recentActivity": [...]
 }
 ```
 
 ### GET `/dashboard/admin` *(Admin required)*
-Get admin dashboard stats.
 
 **Response:**
 ```json
@@ -196,42 +202,42 @@ Get admin dashboard stats.
 
 ---
 
-## Real-Time (Live)
+## WebSocket
 
-Realtime is a hybrid of **SSE** (one-way aggregations) and **WebSocket** (the registration feed).
+### `ws://localhost:3001/ws/live-feed`
 
-### SSE `GET /events/:id/live-count`
-Event-stream of the current registered count. One message every 5 seconds:
+**Client → Server:**
+```json
+{ "type": "subscribe", "eventId": "abc" }
 ```
-data: { "eventId": "abc", "registered": 42, "capacity": 100 }
+
+**Server → Client (count):**
+```json
+{ "type": "count", "eventId": "abc", "registeredCount": 42 }
 ```
-Consumed by `useLiveCount` in the frontend. Auto-fires an extra message whenever a registration
-is created/cancelled so the badge reacts instantly.
 
-### SSE `GET /admin/registrations-stream?access_token=<supabase_jwt>` *(Admin only)*
-Stream of new registrations, for the admin dashboard's live gate:
+**Server → Client (registration):**
+```json
+{ "type": "registration", "name": "Ada", "event": "Tech Summit", "timestamp": "..." }
 ```
-data: { "timestamp": "2026-08-06T12:34:56Z", "name": "Ada Lovelace", "event": "Design Night" }
+
+Heartbeat ping every 30s.
+
+---
+
+## Error Format
+
+All errors follow a consistent shape:
+
+```json
+{ "error": "Human-readable message", "code": "ERROR_CODE" }
 ```
-The token is a Supabase access token passed as a query param (SSE cannot set headers); it is
-verified server-side before the stream is opened.
 
-### WebSocket `ws://localhost:3001/ws/live-feed`
-Two message types:
-
-1. **Registration feed** — server broadcasts exactly the same payload shape as the admin SSE on every registration create.
-2. **Authoritative live counts** — clients send `{"type":"subscribe","eventId"}` (the server replies with the current count), then receive `{"type":"count","eventId","registeredCount"}` on every change. One count per event is held in server memory and fanned out to all subscribers — every viewer sees the identical number, no per-client polling.
-
-Heartbeat ping every 30s. Consumed by `useLiveFeed` (reconnect + backoff) and `useLiveCount` (single shared socket, auto-resubscribe on reconnect).
-
-### Seat-claim atomicity
-`POST /api/registrations/:eventId` runs inside a `Serializable` transaction that locks the Event row
-(`SELECT … FOR UPDATE`) before checking capacity — two users racing for the last seat serialize at the
-database: exactly one gets `201`, the loser gets `409 { "error": "Event is full" }`. Cancelled
-registrations free their seat (counts exclude `CANCELLED`), and every create/cancel triggers a
-single authoritative-count refresh broadcast to all subscribers.
-
-### Frontend hooks
-- `useLiveCount(eventId)` → `{ registered, capacity, isFull }` (SSE, fails silently)
-- `useLiveFeed()` → array of `{ id, name, event, timestamp }` (WS, reconnect + backoff)
-- `useAdminRegistrationStream(cb)` → SSE with `?access_token=` auth, auto-reconnect
+| Status | Meaning |
+|--------|---------|
+| 400 | Bad request / validation error |
+| 401 | Unauthorized (not logged in) |
+| 403 | Forbidden (wrong role) |
+| 404 | Resource not found |
+| 409 | Conflict (event full, duplicate) |
+| 500 | Server error |
