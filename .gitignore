@@ -5,3 +5,13 @@ dist/
 *.log
 .DS_Store
 backend/prisma/migrations/
+
+# Personal/agent configs
+.agents/
+.claude/
+3d_design_skill/
+sound-design-skill/
+.opencode-agent-templates/
+
+# Docs
+FullStack_Tasks.docx
