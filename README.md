@@ -7,6 +7,15 @@ A full-stack event management platform built for the **Ramdeobaba University × 
 
 ![Landing Page](screenshot/Screenshot%202026-08-09%20211923.png)
 
+### Admin Access
+
+The first person to sign in automatically becomes the **admin**. I am currently the admin. If you need admin access (to create events, manage team, scan tickets), contact me:
+
+- **WhatsApp:** [+91 7517991747](https://wa.me/917517991747)
+- **Email:** shounakjoshi88@gmail.com
+
+---
+
 ---
 
 ## Table of Contents
