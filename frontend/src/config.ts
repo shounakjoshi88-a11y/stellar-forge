@@ -6,7 +6,7 @@ declare global {
 
 const env = globalThis.process?.env ?? {};
 
-export const API_URL: string = env.VITE_API_URL || "http://localhost:3001/api";
+export const API_URL: string = env.BUN_PUBLIC_API_URL || "http://localhost:3001/api";
 export const SUPABASE_URL: string =
   process.env.BUN_PUBLIC_SUPABASE_URL || "http://localhost:54321";
 export const SUPABASE_ANON_KEY: string = process.env.BUN_PUBLIC_SUPABASE_ANON_KEY || "";
