@@ -428,6 +428,10 @@ Use Supabase or any PostgreSQL provider. Run `bunx prisma db push` to set up sch
 
 ---
 
+## Troubleshooting
+
+See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for deployment hurdles we faced and how we solved them (PM2 env caching, CORS timing, HTTPS Mixed Content, etc.).
+
 ## License
 
 MIT
