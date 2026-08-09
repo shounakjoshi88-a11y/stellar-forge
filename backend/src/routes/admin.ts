@@ -37,10 +37,12 @@ adminRouter.put("/users/:id/role", authenticate, requireOwner, async (req, res) 
     return;
   }
 
-  const ownerEmails = (process.env.ADMIN_OWNER_EMAIL || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
-  if (ownerEmails.includes(target.email.toLowerCase())) {
-    res.status(400).json({ error: "The owner's role cannot be changed via this endpoint" });
-    return;
+  if (target.role === "ADMIN") {
+    const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+    if (adminCount <= 1) {
+      res.status(400).json({ error: "Cannot demote the only admin" });
+      return;
+    }
   }
 
   let newRole: "ADMIN" | "ATTENDEE";

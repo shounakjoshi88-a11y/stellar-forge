@@ -67,15 +67,18 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     const email = claims.email && claims.email.length > 0 ? claims.email : `${supabaseId}@no-email.local`;
     const name = claims.user_metadata?.name || claims.user_metadata?.full_name || "Attendee";
 
-    const ownerEmails = (process.env.ADMIN_OWNER_EMAIL || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
-    const isOwner = ownerEmails.length > 0 && ownerEmails.includes(email.toLowerCase());
+    // First user to sign up becomes the owner. The owner can then promote
+    // others via the Team management panel.
+    const userCount = await prisma.user.count();
+    const isFirstUser = userCount === 0;
+    const isOwner = isFirstUser;
 
     // The owner's role is self-healing: it is forced back to ADMIN on every
     // request. Nobody else's role is ever touched here — that is DB-authoritative.
     const dbUser = await prisma.user.upsert({
       where: { supabaseId },
-      update: { email, name, ...(isOwner ? { role: "ADMIN" } : {}) },
-      create: { email, name, role: isOwner ? "ADMIN" : "ATTENDEE", supabaseId },
+      update: { email, name, ...(isFirstUser || isOwner ? { role: "ADMIN" } : {}) },
+      create: { email, name, role: isFirstUser ? "ADMIN" : "ATTENDEE", supabaseId },
     });
 
     (req as any).user = { userId: dbUser.id, email: dbUser.email, role: dbUser.role, name: dbUser.name, isOwner };
