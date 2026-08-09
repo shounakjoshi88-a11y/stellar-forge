@@ -1,6 +1,6 @@
 # Troubleshooting & Lessons Learned
 
-This document captures the hurdles we faced during deployment and how we solved them.
+This document captures the hurdles faced during deployment and how they were solved.
 
 ---
 
