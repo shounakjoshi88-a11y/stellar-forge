@@ -5,6 +5,8 @@ A full-stack event management platform built for the **Ramdeobaba University × 
 **Author:** [Shounak Joshi](https://github.com/shounakjoshi88-a11y)
 **Live Demo:** [https://stellar-forge-frontend.vercel.app/](https://stellar-forge-frontend.vercel.app/)
 
+![Landing Page](screenshot/Screenshot%202026-08-09%20211923.png)
+
 ---
 
 ## Table of Contents
