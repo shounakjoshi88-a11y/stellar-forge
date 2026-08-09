@@ -37,8 +37,8 @@ adminRouter.put("/users/:id/role", authenticate, requireOwner, async (req, res) 
     return;
   }
 
-  const ownerEmail = process.env.ADMIN_OWNER_EMAIL;
-  if (ownerEmail && target.email.toLowerCase() === ownerEmail.toLowerCase()) {
+  const ownerEmails = (process.env.ADMIN_OWNER_EMAIL || "").split(",").map(e => e.trim().toLowerCase()).filter(Boolean);
+  if (ownerEmails.includes(target.email.toLowerCase())) {
     res.status(400).json({ error: "The owner's role cannot be changed via this endpoint" });
     return;
   }
