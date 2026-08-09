@@ -1,112 +1,257 @@
 # Stellar Forge — API Documentation
 
 **Base URL:** `http://localhost:3001/api`
+**Auth:** Bearer token (Supabase JWT) via `Authorization` header or `?access_token=` query param
 
 ---
 
 ## Authentication
 
-Authentication uses **Supabase Auth** with Google OAuth. Users sign in via the frontend; the Supabase access token is sent as a Bearer token:
+All authenticated endpoints require a valid Supabase access token. The backend verifies tokens locally via JWKS (no per-request Supabase API call).
 
 ```
 Authorization: Bearer <supabase_access_token>
 ```
 
-The backend verifies tokens locally via JWKS (no per-request Supabase API call) and provisions a local user row on first sign-in.
-
-**Roles are DB-authoritative:**
-- `ADMIN_OWNER_EMAIL` in `.env` is the **owner** — auto-promoted on every request
-- Other users start as `ATTENDEE`
-- Owner grants/revokes admin via Team tab (audit logged)
-
-### GET `/auth/me` *(Auth required)*
-
-Get current user profile.
-
-**Response:**
-```json
-{ "id": "uuid", "email": "a@b.com", "name": "Ada", "role": "ADMIN", "createdAt": "..." }
-```
+**Roles:**
+- `ATTENDEE` — default for new users
+- `ADMIN` — granted by owner
+- `OWNER` — set via `ADMIN_OWNER_EMAIL` env var (self-healing)
 
 ---
 
-## Events
+## Auth Endpoints
+
+### GET `/auth/me`
+
+Get current user profile. Re-syncs name/email from Google identity.
+
+**Auth:** Required
+
+**Response 200:**
+```json
+{
+  "id": "clq...",
+  "email": "user@gmail.com",
+  "name": "Ada Lovelace",
+  "role": "ADMIN",
+  "createdAt": "2026-08-01T00:00:00Z",
+  "isOwner": true
+}
+```
+
+**Responses:** `401` (invalid token), `404` (user not found)
+
+---
+
+## Events Endpoints (Public)
 
 ### GET `/events`
 
-List published events with pagination and filters.
+List published events with filters and pagination.
 
-| Param | Type | Description |
-|-------|------|-------------|
-| search | string | Search title, description, location |
-| category | string | Filter by category |
-| status | string | `upcoming`, `past`, `all` |
-| page | number | Default: 1 |
-| limit | number | Default: 12 |
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| search | string | — | Search title, description, location |
+| category | string | — | Filter by category |
+| status | string | `"upcoming"` | `upcoming`, `past`, `all` |
+| page | number | 1 | Page number |
+| limit | number | 12 | Items per page |
 
-**Response:** `{ "events": [...], "pagination": { "page", "total", "totalPages" } }`
+**Response 200:**
+```json
+{
+  "events": [{
+    "id": "clq...",
+    "title": "Tech Summit",
+    "description": "Annual tech conference",
+    "date": "2026-09-15T09:00:00Z",
+    "location": "Convention Center",
+    "capacity": 200,
+    "category": "Technology",
+    "imageUrl": "https://...",
+    "isOpen": true,
+    "registeredCount": 45,
+    "spotsLeft": 155
+  }],
+  "pagination": { "page": 1, "limit": 12, "total": 25, "pages": 3 }
+}
+```
+
+> Note: `status="upcoming"` includes TBD (date=null) events.
+
+---
 
 ### GET `/events/categories`
 
 Get all unique categories.
 
-**Response:** `["Technology", "Design", ...]`
+**Response:** `["Technology", "Design", "Workshop", ...]`
+
+---
+
+### GET `/events/stats`
+
+Platform-wide statistics (cached 60s).
+
+**Response:**
+```json
+{
+  "eventsListed": 25,
+  "eventsUpcoming": 18,
+  "ticketsIssued": 342,
+  "doorsOpened": 289,
+  "categories": 6
+}
+```
+
+---
 
 ### GET `/events/:id`
 
-Get single event with attendee count.
+Get single event details.
 
-**Response:** `{ "id", "title", "description", "location", "date", "capacity", "category", "imageUrl", "registeredCount" }`
+**Response 200:**
+```json
+{
+  "id": "clq...",
+  "title": "Tech Summit",
+  "description": "...",
+  "date": "2026-09-15T09:00:00Z",
+  "endDate": "2026-09-15T18:00:00Z",
+  "location": "Convention Center · Hall A",
+  "capacity": 200,
+  "category": "Technology",
+  "imageUrl": "https://...",
+  "isPublished": true,
+  "isOpen": true,
+  "registeredCount": 45,
+  "spotsLeft": 155
+}
+```
 
-### GET `/events/:id/live-count` *(SSE)*
+**Responses:** `404` (not found)
 
-Server-sent events stream of registration count. One message every 5 seconds:
+---
+
+### GET `/events/:id/updates`
+
+Get organizer announcements for an event.
+
+**Response:** `[{ "id": "...", "title": "...", "body": "...", "createdAt": "..." }]`
+
+---
+
+### GET `/events/:id/live-count` (SSE)
+
+Server-sent events stream of registration count.
 
 ```
-data: { "eventId": "abc", "registered": 42, "capacity": 100 }
+event: count
+data: { "registeredCount": 45 }
 ```
 
 ---
 
-## Registrations *(Auth required)*
+## Registrations (Auth Required)
+
+All registration routes require authentication.
 
 ### GET `/registrations/my`
 
-Get all registrations for the logged-in user.
+Get all registrations for the current user.
 
-**Response:** `[{ "id", "ticketId", "status", "event": {...}, "createdAt" }]`
-
-### POST `/registrations/:eventId`
-
-Register for an event. Uses Serializable transaction with row locking — only one user gets the last seat.
-
-**Response (201):** `{ "id", "ticketId", "status": "CONFIRMED", "event": {...} }`
-**Response (409):** `{ "error": "Event is full" }`
-
-### DELETE `/registrations/:eventId`
-
-Cancel a registration (frees the seat).
-
-### GET `/registrations/ticket/:ticketId`
-
-Get ticket details for display/download.
-
-**Response:** `{ "ticketId", "eventName", "eventDate", "location", "attendeeName", "status", "qrCode" }`
+**Response:**
+```json
+[
+  {
+    "id": "...",
+    "ticketId": "TKT-1722988800000-ABC123",
+    "status": "CONFIRMED",
+    "registeredAt": "2026-08-06T12:00:00Z",
+    "usedCount": 1,
+    "lastScannedAt": "2026-09-15T08:55:00Z",
+    "event": { "id": "...", "title": "Tech Summit", "date": "...", "location": "...", "category": "..." }
+  }
+]
+```
 
 ---
 
-## Admin *(Auth + Admin role required)*
+### POST `/registrations/:eventId`
+
+Register for an event. **Atomic, race-proof seat claim** using Serializable transaction with row locking.
+
+**Response 201:**
+```json
+{
+  "id": "...",
+  "ticketId": "TKT-1722988800000-ABC123",
+  "eventId": "...",
+  "status": "CONFIRMED",
+  "registeredAt": "2026-08-06T12:00:00Z",
+  "event": { "id": "...", "title": "Tech Summit", "date": "...", "location": "...", "category": "..." }
+}
+```
+
+**Error Responses:**
+
+| Status | Body | Meaning |
+|--------|------|---------|
+| 400 | `{ "error": "Already registered for this event" }` | Duplicate registration |
+| 404 | `{ "error": "Event not found" }` | Invalid event |
+| 409 | `{ "error": "Registrations are closed for this event" }` | Event not open |
+| 409 | `{ "error": "Event is full", "spotsLeft": 0 }` | Capacity reached |
+
+**Side effects:** Broadcasts live count update, admin SSE event, WebSocket registration + refresh.
+
+---
+
+### DELETE `/registrations/:eventId`
+
+Cancel a registration (soft cancel — status set to CANCELLED).
+
+**Response 200:** `{ "message": "Registration cancelled" }`
+
+**Responses:** `404` (not found)
+
+---
+
+### GET `/registrations/ticket/:ticketId`
+
+Get ticket details. Owner or admin only.
+
+**Response 200:**
+```json
+{
+  "id": "...",
+  "userId": "...",
+  "ticketId": "TKT-...",
+  "status": "CONFIRMED",
+  "registeredAt": "...",
+  "event": { "title": "Tech Summit", "date": "...", "location": "..." },
+  "user": { "name": "Ada", "email": "ada@gmail.com" }
+}
+```
+
+**Responses:** `403` (not owner), `404` (not found)
+
+---
+
+## Admin Endpoints
+
+All admin routes require `ADMIN` role. Team management routes require owner.
 
 ### Event Management
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/admin/events` | List all events (including unpublished) |
-| POST | `/admin/events` | Create new event |
-| PUT | `/admin/events/:id` | Update event |
-| DELETE | `/admin/events/:id` | Delete event |
-| GET | `/admin/events/:id/attendees` | Get registered attendees (`?search=`) |
-| GET | `/admin/events/:id/export` | Export attendees as CSV |
+| GET | `/admin/events` | List all events (incl. unpublished) |
+| POST | `/admin/events` | Create event |
+| PUT | `/admin/events/:id` | Update event (partial) |
+| DELETE | `/admin/events/:id` | Delete event (cascades) |
+| GET | `/admin/events/:id/attendees` | Get attendees (`?search=`) |
+| GET | `/admin/events/:id/export` | Export attendees CSV |
 
 **Create Event Body:**
 ```json
@@ -115,37 +260,78 @@ Get ticket details for display/download.
   "description": "Annual technology conference",
   "location": "Convention Center · Hall A",
   "date": "2026-09-15T09:00:00Z",
+  "endDate": "2026-09-15T18:00:00Z",
   "capacity": 200,
   "category": "Technology",
-  "imageUrl": "https://..."
+  "imageUrl": "https://...",
+  "isPublished": true,
+  "isOpen": true
 }
 ```
 
-> `date` is optional — omit/null lists as **Date TBD · Coming Soon**
+> `date` is optional — omit/null for **Date TBD · Coming Soon**
+> `imageUrl` accepts URLs or base64 data URLs (png/jpeg/webp, max 3MB)
 
-### Attendee Management
+**Update uses `eventSchema.partial()`** — any subset of fields. Use `{ isPublished: false }` to unpublish, `{ isOpen: false }` to close registrations.
+
+---
+
+### Event Updates (Announcements)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/admin/registrations` | All registrations (`?search=`, `?status=`) |
-| GET | `/admin/attendees` | Every registered person with passes (`?search=`) |
+| POST | `/admin/events/:id/updates` | Post announcement |
+| DELETE | `/admin/events/:id/updates/:updateId` | Delete announcement |
+
+**Body:** `{ "title": "...", "body": "..." }`
+
+---
 
 ### Ticket Scanning
 
 ### POST `/admin/tickets/scan`
 
-Door scan. Each ticket scanned twice: 1st = ENTRY, 2nd = EXIT, 3rd = rejected.
+Door scan. Each ticket scanned twice: 1st = ENTRY, 2nd = EXIT.
 
 **Body:** `{ "code": "TKT-..." }`
 
 **Response (valid):**
 ```json
-{ "valid": true, "direction": "entry", "usedCount": 1, "scannedAt": "...", "attendee": "Ada", "event": {...} }
+{
+  "valid": true,
+  "direction": "entry",
+  "usedCount": 1,
+  "scannedAt": "2026-09-15T08:55:00Z",
+  "attendee": "Ada Lovelace",
+  "event": { "id": "...", "title": "Tech Summit" }
+}
 ```
 
-**Response (invalid):** `404 not_found`, `400 not_open_yet`, `409 max_usage`
+**Response (invalid):**
 
-### Team Management *(Owner only)*
+| Status | Body |
+|--------|------|
+| 404 | `{ "valid": false, "reason": "not_found", "message": "No active ticket matches this code." }` |
+| 400 | `{ "valid": false, "reason": "not_open_yet", "message": "The gates aren't open for this event yet." }` |
+| 409 | `{ "valid": false, "reason": "max_usage", "message": "This ticket has already been used for entry and exit." }` |
+| 400 | `{ "valid": false, "reason": "bad_code", "message": "That doesn't look like a ticket code." }` |
+
+> Tickets become scannable 1 hour before event date. TBD events cannot be scanned.
+
+---
+
+### Attendee & Registration Management
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/admin/registrations` | All registrations (`?search=`, `?status=`) |
+| GET | `/admin/attendees` | All attendees with passes (`?search=`) |
+
+**Registration filters:** `status` can be `CONFIRMED`, `CANCELLED`, or `WAITLISTED`.
+
+---
+
+### Team Management (Owner Only)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -155,21 +341,28 @@ Door scan. Each ticket scanned twice: 1st = ENTRY, 2nd = EXIT, 3rd = rejected.
 
 **Role Change Body:** `{ "role": "ADMIN" | "ATTENDEE" }`
 
-### Real-time Admin Stream
+**Response 200:** `{ "id": "...", "email": "...", "name": "...", "role": "ADMIN" }`
 
-### GET `/admin/registrations-stream?access_token=<jwt>` *(SSE, Admin only)*
+**Responses:** `400` (owner's role cannot change), `404` (user not found)
 
-Stream of new registrations for the admin dashboard:
+---
+
+### Admin Real-Time Stream
+
+### GET `/admin/registrations-stream` (SSE)
+
+Stream of new registrations. Token via `?access_token=` (SSE can't set headers).
 
 ```
-data: { "timestamp": "...", "name": "Ada", "event": "Design Night" }
+event: registration
+data: { "timestamp": "2026-08-06T12:34:56Z" }
 ```
 
 ---
 
-## Dashboard
+## Dashboard Endpoints
 
-### GET `/dashboard/attendee` *(Auth required)*
+### GET `/dashboard/attendee` (Auth Required)
 
 **Response:**
 ```json
@@ -179,12 +372,18 @@ data: { "timestamp": "...", "name": "Ada", "event": "Design Night" }
   "completedEvents": 2,
   "favoriteCategory": "Technology",
   "participationStreak": 2,
-  "upcomingReminders": [{ "event": {...}, "daysUntil": 3 }],
-  "recentActivity": [...]
+  "upcomingReminders": [
+    { "id": "...", "title": "Tech Summit", "date": "...", "location": "..." }
+  ],
+  "recentActivity": [
+    { "eventName": "Tech Summit", "date": "...", "registeredAt": "...", "ticketId": "TKT-..." }
+  ]
 }
 ```
 
-### GET `/dashboard/admin` *(Admin required)*
+---
+
+### GET `/dashboard/admin` (Admin Required)
 
 **Response:**
 ```json
@@ -196,7 +395,9 @@ data: { "timestamp": "...", "name": "Ada", "event": "Design Night" }
   "totalRegistrations": 120,
   "categoryStats": { "Technology": 5, "Design": 3 },
   "monthlyStats": { "2026-08": 30, "2026-09": 45 },
-  "eventStats": [...]
+  "eventStats": [
+    { "id": "...", "title": "Tech Summit", "date": "...", "capacity": 200, "registered": 150, "fillRate": 75 }
+  ]
 }
 ```
 
@@ -206,22 +407,42 @@ data: { "timestamp": "...", "name": "Ada", "event": "Design Night" }
 
 ### `ws://localhost:3001/ws/live-feed`
 
-**Client → Server:**
+**Client → Server (subscribe):**
 ```json
-{ "type": "subscribe", "eventId": "abc" }
+{ "type": "subscribe", "eventId": "clq..." }
 ```
 
 **Server → Client (count):**
 ```json
-{ "type": "count", "eventId": "abc", "registeredCount": 42 }
+{ "type": "count", "eventId": "clq...", "registeredCount": 45 }
 ```
 
 **Server → Client (registration):**
 ```json
-{ "type": "registration", "name": "Ada", "event": "Tech Summit", "timestamp": "..." }
+{
+  "type": "registration",
+  "attendeeFirstName": "Ada",
+  "eventTitle": "Tech Summit",
+  "eventId": "...",
+  "timestamp": "2026-08-06T12:34:56Z"
+}
 ```
 
-Heartbeat ping every 30s.
+**Server → Client (scan):**
+```json
+{
+  "type": "scan",
+  "attendee": "Ada Lovelace",
+  "eventTitle": "Tech Summit",
+  "direction": "entry",
+  "timestamp": "..."
+}
+```
+
+**Server → Client (refresh):**
+```json
+{ "type": "refresh", "at": 1722988800000 }
+```
 
 ---
 
@@ -230,7 +451,7 @@ Heartbeat ping every 30s.
 All errors follow a consistent shape:
 
 ```json
-{ "error": "Human-readable message", "code": "ERROR_CODE" }
+{ "error": "Human-readable message" }
 ```
 
 | Status | Meaning |
@@ -239,5 +460,14 @@ All errors follow a consistent shape:
 | 401 | Unauthorized (not logged in) |
 | 403 | Forbidden (wrong role) |
 | 404 | Resource not found |
-| 409 | Conflict (event full, duplicate) |
+| 409 | Conflict (full, closed, duplicate) |
+| 429 | Rate limit exceeded |
 | 500 | Server error |
+
+---
+
+## Health Check
+
+### GET `/api/health`
+
+**Response:** `{ "status": "ok", "timestamp": "2026-08-06T12:00:00Z" }`
