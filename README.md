@@ -1,5 +1,6 @@
 # Stellar Forge — Event Management Portal
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 A full-stack event management platform built for the **Ramdeobaba University × GeeksForGeeks** submission. Centralizes event creation, registration, ticketing, and real-time monitoring into a single immersive experience with exceptional UI/UX, responsive design, creative typography, smooth animations, and interactive 3D elements.
 
 **Author:** [Shounak Joshi](https://github.com/shounakjoshi88-a11y)
